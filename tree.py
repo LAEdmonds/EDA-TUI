@@ -18,5 +18,4 @@ class FilteredDirectoryTree(DirectoryTree):
 
     @on(DirectoryTree.FileSelected)
     def handle_file_selection(self, event: DirectoryTree.FileSelected) -> None:
-        self.app.selected_file = Path(event.path)
-        
+        self.app.selected_file = Path(event.path) 

@@ -1,6 +1,6 @@
 from textual.app import App, ComposeResult
-from textual.widgets import Label, Footer
-from textual.containers import Horizontal
+from textual.widgets import Label, Footer, Static
+from textual.containers import Horizontal, Vertical
 from tree import FilteredDirectoryTree
 from button import In2Csv
 
@@ -12,9 +12,11 @@ class EdaExplorerApp(App):
     def compose(self) -> ComposeResult:
         with Horizontal():
             yield FilteredDirectoryTree('./')
-            yield In2Csv('convert with in2csv')
-            yield Label('no file selected yet', id='status')
-        
+            with Vertical():
+                yield In2Csv('show column names')
+                yield Label('select an .xlsx file', id='status')
+                yield Static('column names appear here', id='columns') 
+
         yield Footer()
 
 
