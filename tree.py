@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Iterable
 
-from textual.widgets import DirectoryTree, Label
+from textual.widgets import DirectoryTree 
 from textual import on
 
 class FilteredDirectoryTree(DirectoryTree):
@@ -18,5 +18,5 @@ class FilteredDirectoryTree(DirectoryTree):
 
     @on(DirectoryTree.FileSelected)
     def handle_file_selection(self, event: DirectoryTree.FileSelected) -> None:
-        file_name = Path(str(event.path)).name
-        self.app.query_one('#path-display', Label).update(f'Selected: {file_name}')
+        self.app.selected_file = Path(event.path)
+        
