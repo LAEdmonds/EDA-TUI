@@ -1,0 +1,201 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   style.tcss  —  Newsroom Analytics Dashboard
+   Professional dark theme. Readable, focused, no neon.
+   Palette: deep charcoal bg · steel-blue accent · warm gray text
+   ════════════════════════════════════════════════════════════════════════════ */
+
+
+/* ── Global screen ───────────────────────────────────────────────────────────
+   Deep charcoal base. All panels sit on top of this.                         */
+Screen {
+    background: #16191f;
+    color: #c5cad6;
+}
+
+
+/* ── Header ──────────────────────────────────────────────────────────────────
+   Slightly lighter than the screen — reads as a top bar, not canvas.         */
+Header {
+    background: #1d2128;
+    color: #8a95aa;
+    height: 1;
+}
+
+
+/* ── Footer ──────────────────────────────────────────────────────────────────
+   Same tone as header. Key hints styled as metadata, not buttons.            */
+Footer {
+    background: #1d2128;
+    color: #555e70;
+}
+
+Footer > .footer--key {
+    background: #252b36;
+    color: #7eb8f7;
+}
+
+
+/* ── Main two-pane split ─────────────────────────────────────────────────────
+   Fills all vertical space between header and footer.                         */
+#main {
+    height: 1fr;
+    background: #16191f;
+}
+
+
+/* ── File tree panel (left sidebar) ─────────────────────────────────────────
+   "Source picker" — elevated surface, left accent border separates it
+   visually from the work area.                                                */
+#file-tree {
+    width: 24%;
+    height: 100%;
+    background: #1d2128;
+    border: solid #2e3440;
+    border-left: tall #3a6ea8;
+    padding: 0 1;
+    margin-right: 1;
+}
+
+FilteredDirectoryTree {
+    background: #1d2128;
+    color: #c5cad6;
+}
+
+FilteredDirectoryTree > .tree--cursor {
+    background: #253147;
+    color: #e8ecf2;
+}
+
+FilteredDirectoryTree > .tree--hover {
+    background: #222833;
+    color: #ffffff;
+}
+
+
+/* ── Right work area ─────────────────────────────────────────────────────────
+   Holds status strip, load toolbar, and the lower analysis panels.           */
+#right-panel {
+    width: 76%;
+    height: 100%;
+}
+
+
+/* ── Status / metadata strip ─────────────────────────────────────────────────
+   One-line strip: active file name, column count, row count.
+   Muted — informational, not a call to action.                               */
+#status {
+    height: 1;
+    background: #1d2128;
+    color: #6b7894;
+    padding: 0 2;
+    border-bottom: solid #2e3440;
+    margin-bottom: 1;
+}
+
+
+/* ── Load toolbar ────────────────────────────────────────────────────────────
+   Only the Load / Convert button lives here now. Keeping Select widgets
+   out of this fixed-height row prevents the dropdown from clipping.          */
+#button-row {
+    height: 3;
+    align: left middle;
+    background: #16191f;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+/* Load button — steel blue tint (primary action) */
+#load-btn {
+    background: #1a2e4a;
+    color: #7eb8f7;
+    border: tall #2b4d7a;
+    min-width: 20;
+}
+
+#load-btn:hover {
+    background: #2b4d7a;
+    color: #d0e8ff;
+    border: tall #4a90d9;
+}
+
+#load-btn:focus {
+    background: #2b4d7a;
+    border: tall #4a90d9;
+}
+
+
+/* ── Lower analysis split ────────────────────────────────────────────────────
+   Houses the controls sidebar (X/Y/type/button) and the plot canvas.        */
+#lower-panel {
+    height: 1fr;
+    padding: 0 1;
+}
+
+
+/* ── Controls sidebar ────────────────────────────────────────────────────────
+   Hosts all plot configuration: X axis, Y axis, plot type, and the Plot
+   button. Wide enough for the Select dropdowns to render cleanly.
+   Select widgets are NOT inside a fixed-height container here, so their
+   dropdowns overlay correctly without clipping.                               */
+#controls-panel {
+    width: 26%;
+    height: 100%;
+    background: #1d2128;
+    border: solid #2e3440;
+    border-left: tall #3a6ea8;
+    padding: 1 2;
+    margin-right: 1;
+}
+
+/* Section labels above each Select — "X Axis", "Y Axis", "Plot Type" */
+.axis-label {
+    height: 1;
+    color: #4a90d9;
+    text-style: bold;
+    margin-top: 1;
+    margin-bottom: 0;
+}
+
+/* All Select widgets inside the controls panel */
+#controls-panel Select {
+    width: 100%;
+    margin-bottom: 1;
+    background: #252b36;
+    border: tall #3a3f4d;
+    color: #c5cad6;
+}
+
+#controls-panel Select:focus {
+    border: tall #4a90d9;
+}
+
+/* Plot button — teal/green tint, sits at the bottom of the sidebar */
+#plot-btn {
+    background: #162e22;
+    color: #6dbb8a;
+    border: tall #235e3a;
+    width: 100%;
+    margin-top: 1;
+}
+
+#plot-btn:hover {
+    background: #235e3a;
+    color: #c5f0d3;
+    border: tall #4caf72;
+}
+
+#plot-btn:disabled {
+    background: #1d2128;
+    color: #2e3440;
+    border: tall #252b36;
+}
+
+
+/* ── Plot canvas ─────────────────────────────────────────────────────────────
+   Main output area. Inset panel so the chart feels framed and distinct.      */
+DataPlot {
+    width: 1fr;
+    height: 1fr;
+    background: #1d2128;
+    border: solid #2e3440;
+}
