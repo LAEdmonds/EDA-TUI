@@ -1,4 +1,3 @@
-from io import StringIO
 from pathlib import Path
 import csv
 
@@ -11,52 +10,42 @@ from textual.widgets import Button, Footer, Header, Label, Select, Static
 from plot_widget import DataPlot
 from tree import FilteredDirectoryTree
 
-try:
-    import pandas as pd
-except ImportError:
-    pd = None
-
-try:
-    from openpyxl import load_workbook
-except ImportError:
-    load_workbook = None
+import pandas as pd
 
 
 class EdaExplorerApp(App):
-    """EDA from your terminal, with file loading and plotting."""
-
     CSS_PATH = "style.tcss"
-
-    BINDINGS = [
-        ("q", "quit", "Quit"),
-    ]
+    BINDINGS = [("q", "quit", "Quit")]
 
     selected_file = reactive(None)
     active_csv_text = reactive("")
-    column_names = reactive([])
-    loaded_rows = reactive([])
+    column_names = reactive(list)
 
     def compose(self) -> ComposeResult:
         yield Header()
+
         with Horizontal(id="main"):
             yield FilteredDirectoryTree("./data", id="file-tree")
+
             with Vertical(id="right-panel"):
-                yield Label(
-                    "Select a .csv or .xlsx file from the tree on the left",
-                    id="status",
-                )
+                yield Label("Select a file", id="status")
+
+                # Load button in the toolbar
                 with Horizontal(id="button-row"):
                     yield Button("Load / Convert", id="load-btn", variant="primary")
-                    yield Button("Overview", id="stats-overview-btn")
                     yield Button("Missing", id="stats-missing-btn")
                     yield Button("Headers", id="stats-headers-btn")
+
                 with Horizontal(id="lower-panel"):
+                    # Controls sidebar: X col, Y col, plot type, plot button
                     with Vertical(id="controls-panel"):
-                        yield Label("X Axis", classes="axis-label")
+                        yield Label("X Axis")
                         yield Select(options=[], id="x-col")
-                        yield Label("Y Axis", classes="axis-label")
+
+                        yield Label("Y Axis")
                         yield Select(options=[], id="y-col")
-                        yield Label("Plot Type", classes="axis-label")
+
+                        yield Label("Plot Type")
                         yield Select(
                             options=[
                                 ("Line", "line"),
@@ -67,341 +56,134 @@ class EdaExplorerApp(App):
                             value="line",
                             id="plot-type",
                         )
-                        yield Button(
-                            "Plot",
-                            id="plot-btn",
-                            variant="success",
-                            disabled=True,
-                        )
+
+                        yield Button("Plot", id="plot-btn", variant="success", disabled=True)
+
                     with Vertical(id="display-panel"):
-                        yield Label("File Stats", classes="axis-label")
+                        yield Label("Output")
                         with VerticalScroll(id="stats-panel"):
-                            yield Static(
-                                "Load a file to inspect summary statistics.",
-                                id="stats-output",
-                            )
+                            yield Static("Load a file first.", id="stats-output")
+
                         yield DataPlot(id="data-plot")
+
         yield Footer()
 
-    def watch_selected_file(self, path: Path | None) -> None:
+    def _status(self, msg):
+        self.query_one("#status", Label).update(msg)
+
+    def _output(self, msg):
+        self.query_one("#stats-output", Static).update(msg)
+
+    def watch_selected_file(self, path):
         self.active_csv_text = ""
         self.column_names = []
-        self.loaded_rows = []
         self.query_one("#plot-btn", Button).disabled = True
-        self.query_one("#stats-output", Static).update(
-            "Load a file to inspect summary statistics."
-        )
+        self._output("Load a file first.")
 
         if path:
-            self.query_one("#status", Label).update(
-                f"{path.name} - press 'Load / Convert' to inspect"
-            )
+            self._status(f"{path.name} ready")
 
-    def watch_column_names(self, names: list) -> None:
-        options = [(name, name) for name in names]
-        x_select = self.query_one("#x-col", Select)
-        y_select = self.query_one("#y-col", Select)
-        x_select.set_options(options)
-        y_select.set_options(options)
+    def watch_column_names(self, names):
+        opts = [(n, n) for n in names]
+        self.query_one("#x-col", Select).set_options(opts)
+        self.query_one("#y-col", Select).set_options(opts)
+        self.query_one("#plot-btn", Button).disabled = not names
 
-        if names:
-            x_default, y_default = self._default_axis_columns(names)
-            x_select.value = x_default
-            y_select.value = y_default
+     # events
+    def _load_file(self, path: Path) -> str:
+        if path.suffix.lower() == ".csv":
+            return path.read_text(encoding="utf-8", errors="replace")
 
-        self.query_one("#plot-btn", Button).disabled = len(names) == 0
+        df = pd.read_excel(path)
+        return df.to_csv(index=False)
 
-    def _load_csv_text(self, path: Path) -> str:
-        return path.read_text(encoding="utf-8", errors="replace")
-
-    def _load_xlsx_text(self, path: Path) -> str:
-        if pd is not None:
-            dataframe = pd.read_excel(path)
-            return dataframe.to_csv(index=False)
-
-        if load_workbook is None:
-            raise RuntimeError(
-                "Loading .xlsx files requires pandas or openpyxl to be installed"
-            )
-
-        workbook = load_workbook(path, read_only=True, data_only=True)
-        worksheet = workbook.active
-        output = StringIO()
-        writer = csv.writer(output, lineterminator="\n")
-
-        for row in worksheet.iter_rows(values_only=True):
-            writer.writerow(["" if value is None else value for value in row])
-
-        workbook.close()
-        return output.getvalue()
-
-    def _parse_rows(self, csv_text: str) -> list[dict[str, str]]:
-        reader = csv.DictReader(csv_text.splitlines())
-        rows = []
-        for row in reader:
-            cleaned_row = {}
-            for key, value in row.items():
-                if key is None:
-                    continue
-                cleaned_row[key] = "" if value is None else str(value).strip()
-            rows.append(cleaned_row)
-        return rows
-
-    def _numeric_values(self, column_name: str) -> list[float]:
-        numeric = []
-        for row in self.loaded_rows:
-            value = row.get(column_name, "")
-            if value == "":
-                continue
-            try:
-                numeric.append(self._parse_numeric(value))
-            except ValueError:
-                continue
-        return numeric
-
-    def _parse_numeric(self, value: str) -> float:
-        cleaned = value.strip().replace(",", "")
-        if cleaned == "":
-            raise ValueError("empty numeric value")
-        return float(cleaned)
-
-    def _is_numeric_column(self, column_name: str) -> bool:
-        values = [row.get(column_name, "") for row in self.loaded_rows if row.get(column_name, "") != ""]
-        if not values:
-            return False
-        return len(self._numeric_values(column_name)) == len(values)
-
-    def _show_stats_message(self, message: str) -> None:
-        self.query_one("#stats-output", Static).update(message)
-
-    def _build_dataframe(self):
-        if pd is None or not self.loaded_rows:
-            return None
-
-        return pd.DataFrame(self.loaded_rows)
-
-    def _build_overview_text(self) -> str:
-        lines = [
-            f"Rows: {len(self.loaded_rows)}",
-            f"Columns: {len(self.column_names)}",
-            "",
-            "Column summary:",
-        ]
-
-        for name in self.column_names:
-            values = [row.get(name, "") for row in self.loaded_rows]
-            missing = sum(1 for value in values if value == "")
-            non_missing = len(values) - missing
-            numeric = self._numeric_values(name)
-
-            if numeric:
-                mean = sum(numeric) / len(numeric)
-                lines.append(
-                    f"{name}: non-missing={non_missing}, missing={missing}, "
-                    f"numeric={len(numeric)}, min={min(numeric):.2f}, "
-                    f"max={max(numeric):.2f}, mean={mean:.2f}"
-                )
-            else:
-                unique_count = len({value for value in values if value != ""})
-                lines.append(
-                    f"{name}: non-missing={non_missing}, missing={missing}, "
-                    f"unique={unique_count}"
-                )
-
-        return "\n".join(lines)
-
-    def _infer_column_type(self, column_name: str) -> str:
-        values = [row.get(column_name, "") for row in self.loaded_rows if row.get(column_name, "") != ""]
-        if not values:
-            return "empty"
-
-        numeric = self._numeric_values(column_name)
-        if len(numeric) == len(values):
-            return "numeric"
-
-        unique_count = len(set(values))
-        if unique_count <= max(20, len(values) // 10):
-            return "categorical"
-
-        if numeric:
-            return "mixed"
-
-        return "text"
-
-    def _graph_usage_for_type(self, column_type: str) -> str:
-        if column_type == "numeric":
-            return "Y: line/bar/scatter, values: histogram, X: line/scatter"
-        if column_type == "categorical":
-            return "X: bar/line/scatter"
-        if column_type == "mixed":
-            return "X: bar/line/scatter, Y: maybe after cleaning"
-        if column_type == "text":
-            return "X: bar/line/scatter if used as labels"
-        return "Needs cleaning before plotting"
-
-    def _build_header_text(self) -> str:
-        lines = [f"All headers ({len(self.column_names)}):", ""]
-
-        for index, name in enumerate(self.column_names, start=1):
-            column_type = self._infer_column_type(name)
-            graph_usage = self._graph_usage_for_type(column_type)
-            lines.append(
-                f"{index}. {name}\n"
-                f"   type: {column_type}\n"
-                f"   graphs: {graph_usage}"
-            )
-
-        return "\n".join(lines)
-
-    def _default_axis_columns(self, names: list[str]) -> tuple[str, str]:
-        x_default = names[0]
-
-        numeric_names = [name for name in names if self._numeric_values(name)]
-        if numeric_names:
-            y_default = numeric_names[0]
-            if y_default == x_default and len(numeric_names) > 1:
-                y_default = numeric_names[1]
-        else:
-            y_default = names[1] if len(names) > 1 else names[0]
-
-        if x_default == y_default and len(names) > 1:
-            for name in names:
-                if name != x_default:
-                    y_default = name
-                    break
-
-        return x_default, y_default
+    def _parse_rows(self, text: str):
+        return list(csv.DictReader(text.splitlines()))
 
     @on(Button.Pressed, "#load-btn")
-    def load_file(self) -> None:
-        if self.selected_file is None:
-            self.query_one("#status", Label).update("Select a file first")
+    def load_file(self):
+        if not self.selected_file:
+            self._status("Select a file first")
             return
 
         path = Path(self.selected_file)
-        self.query_one("#status", Label).update(f"Loading {path.name} ...")
+        csv_text = self._load_file(path)
 
-        try:
-            if path.suffix.lower() == ".xlsx":
-                csv_text = self._load_xlsx_text(path)
-            elif path.suffix.lower() == ".csv":
-                csv_text = self._load_csv_text(path)
-            else:
-                self.query_one("#status", Label).update(
-                    f"Unsupported file type: {path.suffix}"
-                )
-                return
+        rows = self._parse_rows(csv_text)
 
-            reader = csv.DictReader(csv_text.splitlines())
-            names = reader.fieldnames or []
-
-            if not names:
-                self.active_csv_text = ""
-                self.column_names = []
-                self.query_one("#status", Label).update(
-                    f"{path.name} could not be read as tabular data"
-                )
-                return
-
-            self.active_csv_text = csv_text
-            self.column_names = names
-            self.loaded_rows = self._parse_rows(csv_text)
-            row_count = len(self.loaded_rows)
-
-            self.query_one("#status", Label).update(
-                f"{path.name} | {len(names)} columns | ~{row_count} rows"
-                " - pick X and Y columns, then press 'Plot'"
-            )
-            self._show_stats_message(
-                "Press Overview, Missing, or Headers to inspect this file."
-            )
-        except Exception as exc:
-            self.query_one("#status", Label).update(f"Error: {exc}")
-
-    @on(Button.Pressed, "#stats-overview-btn")
-    def show_overview_stats(self) -> None:
-        if not self.loaded_rows:
-            self._show_stats_message("Load a file first.")
+        if not rows:
+            self._status("Invalid or empty file")
             return
 
-        self._show_stats_message(self._build_overview_text())
+        self.active_csv_text = csv_text
+        self.column_names = list(rows[0].keys())
+
+        self._status(f"{path.name} loaded")
 
     @on(Button.Pressed, "#stats-missing-btn")
-    def show_missing_stats(self) -> None:
-        if not self.loaded_rows:
-            self._show_stats_message("Load a file first.")
+    def missing(self):
+        if not self.column_names:
+            self._output("Load a file first.")
             return
 
-        parts = []
-        for name in self.column_names[:8]:
-            missing = sum(1 for row in self.loaded_rows if row.get(name, "") == "")
-            parts.append(f"{name}: {missing}")
+        reader = csv.DictReader(self.active_csv_text.splitlines())
 
-        extra = ""
-        if len(self.column_names) > 8:
-            extra = "\nMore columns omitted."
+        counts = {c: 0 for c in self.column_names}
 
-        self._show_stats_message(
-            "Missing values by column:\n" + "\n".join(parts) + extra
+        for row in reader:
+            for c in self.column_names:
+                if row.get(c, "") == "":
+                    counts[c] += 1
+
+        self._output(
+            "Missing values:\n" +
+            "\n".join(f"{c}: {counts[c]}" for c in self.column_names)
         )
 
     @on(Button.Pressed, "#stats-headers-btn")
-    def show_header_stats(self) -> None:
-        if not self.loaded_rows:
-            self._show_stats_message("Load a file first.")
+    def headers(self):
+        if not self.column_names:
+            self._output("Load a file first.")
             return
 
-        self._show_stats_message(self._build_header_text())
+        self._output("\n".join(self.column_names))
+
+    def _to_float(self, v):
+        try:
+            return float(v.replace(",", "").strip())
+        except:
+            return None
 
     @on(Button.Pressed, "#plot-btn")
-    def plot_selected(self) -> None:
-        x_col = self.query_one("#x-col", Select).value
-        y_col = self.query_one("#y-col", Select).value
+    def plot_selected(self):
+        x_col = str(self.query_one("#x-col", Select).value)
+        y_col = str(self.query_one("#y-col", Select).value)
         plot_type = str(self.query_one("#plot-type", Select).value)
 
-        if y_col is Select.BLANK:
-            self.query_one("#status", Label).update(
-                "Choose a Y column before plotting"
-            )
-            return
-
-        if plot_type != "hist" and x_col is Select.BLANK:
-            self.query_one("#status", Label).update(
-                "Choose both an X and a Y column before plotting"
-            )
-            return
-
-        if not self.active_csv_text:
-            self.query_one("#status", Label).update("Load a file first")
-            return
-
-        y_col = str(y_col)
-        x_col = str(x_col)
+        # parse csv to build X and Y lists, skipping bad Y values
         reader = csv.DictReader(self.active_csv_text.splitlines())
-        x_values = []
-        y_values = []
+
+        xs, ys = [], []
         skipped = 0
 
         for row in reader:
-            raw_y = row.get(y_col, "").strip()
-            raw_x = row.get(x_col, "").strip()
-            try:
-                y_values.append(self._parse_numeric(raw_y))
-                try:
-                    x_values.append(float(raw_x))
-                except ValueError:
-                    x_values.append(raw_x)
-            except ValueError:
+            yv = self._to_float(row.get(y_col, ""))
+            if yv is None:
                 skipped += 1
+                continue
 
-        self.query_one(DataPlot).replot_xy(
-            x_col, y_col, x_values, y_values, plot_type
-        )
+            xv = row.get(x_col, "")
+            # X can be numeric or a string label (e.g. dates, names)
+            try:
+                xs.append(float(xv))
+            except:
+                xs.append(xv)
 
-        note = f" ({skipped} row(s) skipped - non-numeric Y)" if skipped else ""
-        self.query_one("#status", Label).update(
-            f"Plotted: {y_col} vs {x_col}{note}"
-        )
+            ys.append(yv)
+
+        self.query_one(DataPlot).replot_xy(x_col, y_col, xs, ys, plot_type)
+
+        self._status(f"Plotted {y_col} vs {x_col} ({skipped} skipped)")
 
 
 if __name__ == "__main__":
